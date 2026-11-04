@@ -1,0 +1,44 @@
+name: Push
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  macOS:
+    name: macOS app
+    runs-on: macos-26
+    steps:
+
+    - uses: actions/checkout@v5
+
+    - name: Configure Xcode
+      uses: maxim-lobanov/setup-xcode@v1.7.0
+      with:
+        xcode-version: '26.1'
+
+    - name: Build
+      run: |
+        xcodebuild -project Benched.xcodeproj \
+          -scheme Benched \
+          -configuration Debug build
+
+    - name: Test
+      run: |
+        xcodebuild test \
+          -project Benched.xcodeproj \
+          -scheme Benched \
+          -destination 'platform=macOS' \
+          -skip-testing:BenchedUITests
+
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-results
+        path: ~/Library/Developer/Xcode/DerivedData/**/Logs/Test/*.xcresult

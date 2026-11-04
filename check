@@ -1,0 +1,18 @@
+#!/bin/bash
+# No -u: macOS bash 3.2 treats an empty array as unbound
+set -eo pipefail
+
+# --fast skips UI tests, which take over the keyboard and screen
+XCODEBUILD_ARGS=()
+case "${1:-}" in
+    --fast) XCODEBUILD_ARGS=(-skip-testing:BenchedUITests) ;;
+    "") ;;
+    *) echo "Usage: $0 [--fast]" >&2; exit 1 ;;
+esac
+
+swiftformat .
+xcodebuild test \
+    -project Benched.xcodeproj \
+    -scheme Benched \
+    -destination 'platform=macOS' \
+    "${XCODEBUILD_ARGS[@]}"
