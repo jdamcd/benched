@@ -6,6 +6,7 @@ import Testing
 @MainActor
 struct UsageStoreTests {
     private let scheduler = FakeScheduler()
+    private let clock = FakeClock()
     private let background = Duration.seconds(15 * 60)
 
     @Test func startFetchesAndSchedulesBackgroundRefresh() async {
@@ -26,6 +27,7 @@ struct UsageStoreTests {
         store.start()
         await store.refresh().value
 
+        clock.advance(by: background)
         scheduler.fire(background)
         await store.refresh().value
 
@@ -69,6 +71,7 @@ struct UsageStoreTests {
         let store = makeStore(source)
 
         await store.refresh().value
+        clock.advance(by: UsageStore.throttleInterval)
         await store.refresh().value
 
         #expect(store.snapshot == .sample())
@@ -96,6 +99,7 @@ struct UsageStoreTests {
         await store.refresh().value
         #expect(scheduler.active.map(\.interval) == [.seconds(60)])
 
+        clock.advance(by: .seconds(60))
         scheduler.fire(.seconds(60))
         await store.refresh().value
         #expect(source.fetchCount == 2)
@@ -122,6 +126,40 @@ struct UsageStoreTests {
         store.popoverDidClose()
         await store.refresh().value
         #expect(scheduler.active.map(\.interval) == [background])
+    }
+
+    @Test func skipsRefreshWithin30SecondsOfASuccess() async {
+        let source = FakeSource([.ready(.sample())])
+        let store = makeStore(source)
+        await store.refresh().value
+
+        clock.advance(by: .seconds(29))
+        await store.refresh().value
+        #expect(source.fetchCount == 1)
+
+        clock.advance(by: .seconds(1))
+        await store.refresh().value
+        #expect(source.fetchCount == 2)
+    }
+
+    @Test func failureDoesNotHoldBackTheNextRefresh() async {
+        let source = FakeSource([.problem(.timedOut)])
+        let store = makeStore(source)
+        await store.refresh().value
+        await store.refresh().value
+        #expect(source.fetchCount == 2)
+    }
+
+    @Test func openingThePopoverJustAfterAFetchOnlyStartsItsTimer() async {
+        let source = FakeSource([.ready(.sample())])
+        let store = makeStore(source, backgroundMinutes: 0)
+        await store.refresh().value
+
+        store.popoverWillShow()
+        await store.refresh().value
+
+        #expect(source.fetchCount == 1)
+        #expect(scheduler.active.map(\.interval) == [.seconds(60)])
     }
 
     @Test func wakeFetches() async {
@@ -213,6 +251,7 @@ struct UsageStoreTests {
         await running.value
         #expect(source.fetchCount == 2)
 
+        clock.advance(by: UsageStore.throttleInterval)
         let next = store.refresh()
         await store.setChosenClaude(path: nil).value
         await next.value
@@ -229,6 +268,6 @@ struct UsageStoreTests {
         if let backgroundMinutes {
             settings.backgroundRefreshMinutes = backgroundMinutes
         }
-        return UsageStore(source: source, scheduler: scheduler, cache: cache, settings: settings)
+        return UsageStore(source: source, scheduler: scheduler, cache: cache, settings: settings, now: { [clock] in clock.now })
     }
 }

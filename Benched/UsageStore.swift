@@ -19,22 +19,29 @@ final class UsageStore {
     private let scheduler: any RefreshScheduling
     private let cache: any SnapshotCaching
     private let settings: AppSettings
+    private let now: @MainActor () -> ContinuousClock.Instant
     @ObservationIgnored private var inFlight: Task<Void, Never>?
+    @ObservationIgnored private var lastSuccess: ContinuousClock.Instant?
     @ObservationIgnored private var backgroundTimer: (any RefreshTimer)?
     @ObservationIgnored private var openTimer: (any RefreshTimer)?
     // Usage moves slowly (a few percent an hour), so once a minute is plenty while someone's looking
     static let openInterval = Duration.seconds(60)
+    // Triggers bunch up (wake, the popover opening, a click), and each would launch claude
+    static let throttleInterval = Duration.seconds(30)
 
     init(
         source: any UsageSource,
         scheduler: any RefreshScheduling = TimerScheduler(),
         cache: any SnapshotCaching = NoSnapshotCache(),
         settings: AppSettings = AppSettings(),
+        // Continuous rather than Date, so time asleep counts and a clock change doesn't
+        now: @escaping @MainActor () -> ContinuousClock.Instant = { .now },
     ) {
         self.source = source
         self.scheduler = scheduler
         self.cache = cache
         self.settings = settings
+        self.now = now
         backgroundRefreshMinutes = settings.backgroundRefreshMinutes
         menuBarMeter = settings.menuBarMeter
         chosenClaudePath = settings.chosenClaudePath
@@ -66,10 +73,12 @@ final class UsageStore {
         settings.chosenClaudePath = path
         chosenClaudePath = path
         // A fetch that's already running uses the claude from before the
-        // change, so joining it would show the old claude's result
+        // change, so joining it would show the old claude's result. Clearing
+        // after it ends means its success can't throttle this fetch.
         let running = inFlight
         return Task {
             await running?.value
+            lastSuccess = nil
             await refresh().value
         }
     }
@@ -109,6 +118,11 @@ final class UsageStore {
         if let inFlight {
             return inFlight
         }
+        // Only a success counts, so a failure can be retried straight away
+        if let lastSuccess, now() - lastSuccess < Self.throttleInterval {
+            Log.refresh.info("refresh skipped: updated in the last \(Self.throttleInterval, privacy: .public)")
+            return Task {}
+        }
         isRefreshing = true
         let task = Task {
             let result = await source.fetch()
@@ -128,6 +142,7 @@ final class UsageStore {
             self.snapshot = snapshot
             problem = nil
             isFromCache = false
+            lastSuccess = now()
             cache.save(snapshot)
         case let .problem(problem):
             self.problem = problem

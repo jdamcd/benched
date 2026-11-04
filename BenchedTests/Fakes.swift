@@ -115,6 +115,15 @@ final class FakeScheduler: RefreshScheduling {
     }
 }
 
+@MainActor
+final class FakeClock {
+    private(set) var now = ContinuousClock.now
+
+    func advance(by duration: Duration) {
+        now += duration
+    }
+}
+
 extension Meter {
     static func sample(
         _ kind: MeterKind = .session,
