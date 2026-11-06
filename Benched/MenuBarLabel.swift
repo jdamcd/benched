@@ -13,33 +13,23 @@ struct MenuBarLabel: Sendable, Equatable {
     var icon: Icon
     var text: String?
     var level: SeverityLevel
-    var isDimmed: Bool
     var accessibilityLabel: String
 
-    static func make(snapshot: UsageSnapshot?, showing meter: MenuBarMeter, problem: Problem?, isFromCache: Bool = false, now: Date) -> MenuBarLabel {
-        guard let snapshot else {
-            if problem != nil {
-                return MenuBarLabel(
-                    icon: .problem,
-                    level: .normal,
-                    isDimmed: false,
-                    accessibilityLabel: "Claude usage unavailable",
-                )
-            }
-            return MenuBarLabel(icon: .gauge(percent: 0), level: .normal, isDimmed: false, accessibilityLabel: AccessibilityText.menuBar(meter: nil, now: now))
+    // Shows the last good number even when it's old or the last fetch failed: the popover says which
+    static func make(snapshot: UsageSnapshot?, showing meter: MenuBarMeter, problem: Problem?, now: Date) -> MenuBarLabel {
+        if snapshot == nil, problem != nil {
+            return MenuBarLabel(icon: .problem, level: .normal, accessibilityLabel: "Claude usage unavailable")
         }
-        let freshness = Freshness.make(observedAt: snapshot.observedAt, problem: problem, isFromCache: isFromCache, now: now)
-        guard let meter = snapshot.headline(preferring: meter.kind) else {
-            return MenuBarLabel(icon: .gauge(percent: 0), level: .normal, isDimmed: freshness != .fresh, accessibilityLabel: AccessibilityText.menuBar(meter: nil, now: now))
+        guard let meter = snapshot?.headline(preferring: meter.kind) else {
+            return MenuBarLabel(icon: .gauge(percent: 0), level: .normal, accessibilityLabel: AccessibilityText.menuBar(meter: nil, now: now))
         }
         if meter.hasReset(now: now) {
-            return MenuBarLabel(icon: .gauge(percent: 0), text: "—", level: .normal, isDimmed: true, accessibilityLabel: AccessibilityText.menuBar(meter: meter, now: now))
+            return MenuBarLabel(icon: .gauge(percent: 0), text: "—", level: .normal, accessibilityLabel: AccessibilityText.menuBar(meter: meter, now: now))
         }
         return MenuBarLabel(
             icon: .gauge(rounding: meter.percent),
             text: PercentText.make(meter.percent),
             level: meter.level,
-            isDimmed: freshness != .fresh,
             accessibilityLabel: AccessibilityText.menuBar(meter: meter, now: now),
         )
     }

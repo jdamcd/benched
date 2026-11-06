@@ -69,7 +69,6 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
                 snapshot: store.snapshot,
                 showing: store.menuBarMeter,
                 problem: store.problem,
-                isFromCache: store.isFromCache,
                 now: .now,
             )
         } onChange: { [weak self] in
@@ -99,7 +98,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             var attributes: [NSAttributedString.Key: Any] = [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.menuBarFont(ofSize: 0).pointSize, weight: .regular),
             ]
-            if let color = textColor(for: label) {
+            if let color = textColor(for: label.level) {
                 attributes[.foregroundColor] = color
             }
             // No leading space: the button already leaves 4pt between the image and the title
@@ -116,9 +115,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     }
 
     // nil for normal, so the text follows the menu bar's own appearance
-    private static func textColor(for label: MenuBarLabel) -> NSColor? {
-        if label.isDimmed { return .secondaryLabelColor }
-        return switch label.level {
+    private static func textColor(for level: SeverityLevel) -> NSColor? {
+        switch level {
         case .normal: nil
         case .warning: .systemOrange
         case .critical: .systemRed

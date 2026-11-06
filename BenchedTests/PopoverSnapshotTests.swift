@@ -52,8 +52,7 @@ final class PopoverSnapshotTests: SnapshotTestCase {
         let labels: [(String, MenuBarLabel)] = [
             ("normal", MenuBarLabel.make(snapshot: PreviewData.normal, showing: .session, problem: nil, now: PreviewData.now)),
             ("critical", MenuBarLabel.make(snapshot: PreviewData.warningAndCritical, showing: .session, problem: nil, now: PreviewData.now)),
-            ("warning", MenuBarLabel(icon: .gauge(percent: 80), text: "83%", level: .warning, isDimmed: false, accessibilityLabel: "")),
-            ("dimmed", MenuBarLabel.make(snapshot: PreviewData.normal, showing: .session, problem: .timedOut, now: PreviewData.now)),
+            ("warning", MenuBarLabel(icon: .gauge(percent: 80), text: "83%", level: .warning, accessibilityLabel: "")),
             ("loading", MenuBarLabel.make(snapshot: nil, showing: .session, problem: nil, now: PreviewData.now)),
         ]
         for (name, label) in labels {
